@@ -24,11 +24,4 @@ Collection endpoints:
 
 `GET /api/collections/{id}` returns the collection name and its document IDs. Document metadata is available through `/api/documents`; PDF upload is scheduled for a later sprint.
 
-Tag endpoints:
-
-| Method | Path | Action |
-| --- | --- | --- |
-| `GET`, `POST` | `/api/tags` | List or create tags |
-| `PUT`, `DELETE` | `/api/documents/{documentId}/tags/{tagId}` | Assign or remove a tag |
-
-Document responses include assigned tags. `mvn verify` runs the tests, produces a JaCoCo report in `DMS_Backend/target/site/jacoco`, and enforces at least 71% line coverage.
+`mvn verify` runs the tests, produces a JaCoCo report in `DMS_Backend/target/site/jacoco`, and enforces at least 71% line coverage.

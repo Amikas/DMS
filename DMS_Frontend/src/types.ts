@@ -5,15 +5,6 @@ export type DocumentStatus =
   | 'SUMMARY_GENERATED'
   | 'ARCHIVED';
 
-export interface TagRequest {
-  name: string;
-}
-
-export interface TagResponse {
-  id: number;
-  name: string;
-}
-
 export interface CollectionRequest {
   name: string;
 }
@@ -44,5 +35,4 @@ export interface DocumentResponse {
   status: DocumentStatus;
   ocrText?: string;
   summary?: string;
-  tags: TagResponse[];
 }

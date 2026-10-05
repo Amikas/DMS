@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  assignTag,
   deleteDocument,
   getDocument,
-  listTags,
-  removeTag,
   updateDocument,
 } from '../lib/api';
-import type { DocumentRequest, DocumentResponse, TagResponse } from '../types';
+import type { DocumentRequest, DocumentResponse } from '../types';
 import DocumentForm from '../components/DocumentForm';
 
 export default function DocumentDetail() {
@@ -17,7 +14,6 @@ export default function DocumentDetail() {
   const docId = Number(id);
 
   const [doc, setDoc] = useState<DocumentResponse | null>(null);
-  const [allTags, setAllTags] = useState<TagResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -29,10 +25,9 @@ export default function DocumentDetail() {
       setLoading(true);
       setError(null);
       try {
-        const [d, tags] = await Promise.all([getDocument(docId), listTags()]);
+        const d = await getDocument(docId);
         if (!cancelled) {
           setDoc(d);
-          setAllTags(tags);
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Load failed.');
@@ -68,15 +63,6 @@ export default function DocumentDetail() {
     navigate('/');
   }
 
-  async function toggleTag(tagId: number, assigned: boolean) {
-    if (assigned) {
-      await removeTag(docId, tagId);
-    } else {
-      await assignTag(docId, tagId);
-    }
-    setDoc(await getDocument(docId));
-  }
-
   if (loading) return <p>Loading…</p>;
   if (error || !doc)
     return (
@@ -84,8 +70,6 @@ export default function DocumentDetail() {
         {error ?? 'Not found.'} <button type="button" onClick={() => navigate('/')}>Back</button>
       </p>
     );
-
-  const assignedIds = new Set(doc.tags.map((t) => t.id));
 
   return (
     <section>
@@ -132,28 +116,6 @@ export default function DocumentDetail() {
               />
             </div>
           )}
-        </div>
-
-        <div className="card">
-          <h2>Tags</h2>
-          {allTags.length === 0 && <p className="muted">No tags yet — create one under Tags.</p>}
-          <ul className="check-list">
-            {allTags.map((t) => {
-              const assigned = assignedIds.has(t.id);
-              return (
-                <li key={t.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={assigned}
-                      onChange={() => toggleTag(t.id, assigned)}
-                    />
-                    {t.name}
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
         </div>
       </div>
     </section>

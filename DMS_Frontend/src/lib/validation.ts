@@ -1,4 +1,4 @@
-import type { CollectionRequest, DocumentRequest, TagRequest } from '../types';
+import type { CollectionRequest, DocumentRequest } from '../types';
 
 export type ValidationErrors = Record<string, string>;
 
@@ -14,10 +14,6 @@ function validateRequiredName(value: string, field = 'name'): ValidationErrors {
     errors[field] = 'Max 255 characters allowed.';
   }
   return errors;
-}
-
-export function validateTag(data: TagRequest): ValidationErrors {
-  return validateRequiredName(data.name, 'name');
 }
 
 export function validateCollection(data: CollectionRequest): ValidationErrors {

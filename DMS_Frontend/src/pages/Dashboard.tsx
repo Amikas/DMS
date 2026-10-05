@@ -36,8 +36,7 @@ export default function Dashboard() {
     return docs.filter(
       (d) =>
         d.title.toLowerCase().includes(q) ||
-        (d.description ?? '').toLowerCase().includes(q) ||
-        d.tags.some((t) => t.name.toLowerCase().includes(q)),
+        (d.description ?? '').toLowerCase().includes(q),
     );
   }, [docs, query, searchError]);
 
@@ -72,7 +71,7 @@ export default function Dashboard() {
             aria-label="Search documents"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search title, description, or tag…"
+            placeholder="Search title or description…"
             maxLength={255}
             aria-invalid={Boolean(searchError)}
           />
@@ -102,9 +101,6 @@ export default function Dashboard() {
             <Link to={`/documents/${d.id}`} className="title">{d.title}</Link>
             <span className="meta">
               <span className={`badge status ${d.status}`}>{d.status}</span>
-              {d.tags.map((t) => (
-                <span key={t.id} className="tag">{t.name}</span>
-              ))}
             </span>
           </li>
         ))}

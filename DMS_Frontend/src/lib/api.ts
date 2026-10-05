@@ -3,8 +3,6 @@ import type {
   CollectionResponse,
   DocumentRequest,
   DocumentResponse,
-  TagRequest,
-  TagResponse,
 } from '../types';
 
 const API_BASE = '';
@@ -78,24 +76,6 @@ export function updateDocument(id: number, data: DocumentRequest): Promise<Docum
 
 export function deleteDocument(id: number): Promise<void> {
   return request<void>(`/api/documents/${id}`, { method: 'DELETE' });
-}
-
-// --- tags ---
-
-export function listTags(): Promise<TagResponse[]> {
-  return request<TagResponse[]>('/api/tags');
-}
-
-export function createTag(data: TagRequest): Promise<TagResponse> {
-  return request<TagResponse>('/api/tags', json(data));
-}
-
-export function assignTag(documentId: number, tagId: number): Promise<void> {
-  return request<void>(`/api/documents/${documentId}/tags/${tagId}`, { method: 'PUT' });
-}
-
-export function removeTag(documentId: number, tagId: number): Promise<void> {
-  return request<void>(`/api/documents/${documentId}/tags/${tagId}`, { method: 'DELETE' });
 }
 
 // --- collections ---

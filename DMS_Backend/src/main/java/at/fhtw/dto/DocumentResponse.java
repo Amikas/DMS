@@ -1,7 +1,6 @@
 package at.fhtw.dto;
 
 import lombok.*;
-import java.util.List;
 
 @Getter
 @Setter
@@ -19,5 +18,4 @@ public class DocumentResponse {
     private String status;
     private String ocrText;
     private String summary;
-    private List<TagResponse> tags;
 }
