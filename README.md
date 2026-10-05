@@ -25,3 +25,16 @@ Collection endpoints:
 `GET /api/collections/{id}` returns the collection name and its document IDs. Document metadata is available through `/api/documents`; PDF upload is scheduled for a later sprint.
 
 `mvn verify` runs the tests, produces a JaCoCo report in `DMS_Backend/target/site/jacoco`, and enforces at least 71% line coverage.
+
+## Sprint 2
+
+Web UI (React + Vite) served via nginx on port 80, REST API proxied same-origin under `/api/`:
+
+```sh
+docker compose build
+docker compose up -d
+curl http://localhost/            # frontend (expect 200 + HTML)
+curl http://localhost/api/health  # proxied REST (expect OK)
+```
+
+Dashboard (`/`), collections (`/collections`) and document detail (`/documents/:id`) are served by nginx with SPA fallback. Forms validate client-side (`DMS_Frontend/src/lib/validation.ts`) and server-side (Jakarta validation, e.g. empty title yields 400).
