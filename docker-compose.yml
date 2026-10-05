@@ -17,7 +17,7 @@ services:
       retries: 5
 
   dms-backend:
-    build: .
+    build: ./DMS_Backend
     container_name: dms-backend
     ports:
       - "8081:8081"
@@ -30,7 +30,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: dms
 
   dms-frontend:
-    build: ../DMS_Frontend
+    build: ./DMS_Frontend
     container_name: dms-frontend
     ports:
       - "80:80"
