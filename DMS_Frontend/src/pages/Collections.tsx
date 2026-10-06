@@ -21,6 +21,26 @@ export default function Collections() {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [detail, setDetail] = useState<CollectionResponse | null>(null);
+  const [pendingIds, setPendingIds] = useState<number[]>([]);
+  const [actionError, setActionError] = useState<{
+    id: number; message: string; membership: boolean;
+  } | null>(null);
+
+  async function runAction(id: number, action: () => Promise<void>, membership = false) {
+    setPendingIds((ids) => [...ids, id]);
+    setActionError(null);
+    try {
+      await action();
+    } catch (err) {
+      setActionError({
+        id,
+        message: err instanceof Error && err.message ? err.message : 'Action failed. Please try again.',
+        membership,
+      });
+    } finally {
+      setPendingIds((ids) => ids.filter((pendingId) => pendingId !== id));
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -76,24 +96,30 @@ export default function Collections() {
 
   async function handleDelete(id: number) {
     if (!window.confirm('Delete this collection? Documents are kept.')) return;
-    await deleteCollection(id);
-    setCollections((prev) => prev.filter((c) => c.id !== id));
-    if (detail?.id === id) setDetail(null);
+    await runAction(id, async () => {
+      await deleteCollection(id);
+      setCollections((prev) => prev.filter((c) => c.id !== id));
+      if (detail?.id === id) setDetail(null);
+    });
   }
 
   async function openDetail(id: number) {
-    setDetail(await getCollection(id));
+    await runAction(id, async () => {
+      setDetail(await getCollection(id));
+    });
   }
 
   async function toggleDoc(collectionId: number, documentId: number, member: boolean) {
-    if (member) {
-      await removeDocumentFromCollection(collectionId, documentId);
-    } else {
-      await addDocumentToCollection(collectionId, documentId);
-    }
-    const updated = await getCollection(collectionId);
-    setDetail(updated);
-    setCollections((prev) => prev.map((c) => (c.id === collectionId ? updated : c)));
+    await runAction(collectionId, async () => {
+      if (member) {
+        await removeDocumentFromCollection(collectionId, documentId);
+      } else {
+        await addDocumentToCollection(collectionId, documentId);
+      }
+      const updated = await getCollection(collectionId);
+      setDetail(updated);
+      setCollections((prev) => prev.map((c) => (c.id === collectionId ? updated : c)));
+    }, true);
   }
 
   if (loading) return <p>Loading…</p>;
@@ -128,13 +154,14 @@ export default function Collections() {
       <ul className="list">
         {collections.map((c) => (
           <li key={c.id} className="row-card">
-            <button type="button" className="btn-ghost" onClick={() => openDetail(c.id)}>
+            <button type="button" className="btn-ghost" disabled={pendingIds.includes(c.id)} onClick={() => openDetail(c.id)}>
               {c.name} ({c.documentIds.length})
             </button>
-            <span className="meta">
-              <button type="button" className="btn-ghost" onClick={() => setEditingId(c.id)}>Rename</button>
-              <button type="button" className="btn-danger" onClick={() => handleDelete(c.id)}>Delete</button>
-            </span>
+            <div className="meta">
+              <button type="button" className="btn-ghost" disabled={pendingIds.includes(c.id)} onClick={() => setEditingId(c.id)}>Rename</button>
+              <button type="button" className="btn-danger" disabled={pendingIds.includes(c.id)} onClick={() => handleDelete(c.id)}>Delete</button>
+              {actionError?.id === c.id && !actionError.membership && <p role="alert">{actionError.message}</p>}
+            </div>
           </li>
         ))}
       </ul>
@@ -145,6 +172,7 @@ export default function Collections() {
             <CollectionForm
               key={c.id}
               initial={{ name: c.name }}
+              pending={pendingIds.includes(c.id)}
               onSubmit={(data) => handleRename(c.id, data)}
             />
           ))}
@@ -154,6 +182,7 @@ export default function Collections() {
       {detail && (
         <div className="card">
           <h2>{detail.name} — documents</h2>
+          {actionError?.id === detail.id && actionError.membership && <p role="alert">{actionError.message}</p>}
           <ul className="check-list">
             {docs.map((d) => {
               const member = memberIds.has(d.id);
@@ -163,6 +192,7 @@ export default function Collections() {
                     <input
                       type="checkbox"
                       checked={member}
+                      disabled={pendingIds.includes(detail.id)}
                       onChange={() => toggleDoc(detail.id, d.id, member)}
                     />
                     {d.title}

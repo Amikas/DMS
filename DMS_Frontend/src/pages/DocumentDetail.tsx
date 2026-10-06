@@ -18,6 +18,8 @@ export default function DocumentDetail() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,8 +61,16 @@ export default function DocumentDetail() {
 
   async function handleDelete() {
     if (!window.confirm('Delete this document?')) return;
-    await deleteDocument(docId);
-    navigate('/');
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteDocument(docId);
+      navigate('/');
+    } catch (err) {
+      setDeleteError(err instanceof Error && err.message ? err.message : 'Delete failed. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   if (loading) return <p>Loading…</p>;
@@ -80,12 +90,15 @@ export default function DocumentDetail() {
           <p><span className={`badge status ${doc.status}`}>{doc.status}</span></p>
         </div>
         <div className="btn-row">
-          <button type="button" className="btn-ghost" onClick={() => setEditing((v) => !v)}>
+          <button type="button" className="btn-ghost" disabled={saving || deleting} onClick={() => setEditing((v) => !v)}>
             {editing ? 'Cancel edit' : 'Edit'}
           </button>
-          <button type="button" className="btn-danger" onClick={handleDelete}>Delete</button>
+          <button type="button" className="btn-danger" disabled={saving || deleting} onClick={handleDelete}>
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
         </div>
       </div>
+      {deleteError && <p role="alert">{deleteError}</p>}
 
       <div className="detail-grid">
         <div className="card">
@@ -111,7 +124,7 @@ export default function DocumentDetail() {
                   fileSize: doc.fileSize,
                   contentType: doc.contentType,
                 }}
-                pending={saving}
+                pending={saving || deleting}
                 onSubmit={handleUpdate}
               />
             </div>
