@@ -17,7 +17,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @TestPropertySource(properties = {
@@ -30,27 +29,12 @@ class SprintOneWorkflowTest {
     @Autowired private ObjectMapper json;
 
     @Test
-    void documentsTagsAndCollectionsPersistThroughRestApi() throws Exception {
+    void documentsAndCollectionsPersistThroughRestApi() throws Exception {
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).build();
         JsonNode document = json.readTree(mvc.perform(post("/api/documents")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Report\"}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         long documentId = document.get("id").asLong();
-
-        JsonNode tag = json.readTree(mvc.perform(post("/api/tags")
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\" Work \"}"))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
-        long tagId = tag.get("id").asLong();
-        assertEquals("work", tag.get("name").asText());
-        mvc.perform(post("/api/tags").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"work\"}"))
-                .andExpect(status().isConflict());
-        mvc.perform(put("/api/documents/{documentId}/tags/{tagId}", documentId, tagId))
-                .andExpect(status().isNoContent());
-
-        JsonNode tagged = json.readTree(mvc.perform(get("/api/documents/{id}", documentId))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-        assertEquals(tagId, tagged.get("tags").get(0).get("id").asLong());
 
         JsonNode collection = json.readTree(mvc.perform(post("/api/collections")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Coursework\"}"))
@@ -67,14 +51,7 @@ class SprintOneWorkflowTest {
         assertEquals(documentId, grouped.get("documentIds").get(0).asLong());
 
         mvc.perform(delete("/api/collections/{id}", collectionId)).andExpect(status().isNoContent());
-        assertTrue(json.readTree(mvc.perform(get("/api/documents/{id}", documentId))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
-                .get("tags").isArray());
-        mvc.perform(delete("/api/documents/{id}/tags/{tagId}", documentId, tagId))
-                .andExpect(status().isNoContent());
-        JsonNode untagged = json.readTree(mvc.perform(get("/api/documents/{id}", documentId))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-        assertEquals(0, untagged.get("tags").size());
+        mvc.perform(get("/api/documents/{id}", documentId)).andExpect(status().isOk());
         mvc.perform(delete("/api/documents/{id}", documentId)).andExpect(status().isNoContent());
         mvc.perform(get("/api/documents/{id}", documentId)).andExpect(status().isNotFound());
     }

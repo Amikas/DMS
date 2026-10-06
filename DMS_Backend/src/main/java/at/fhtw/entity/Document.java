@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Table(name = "documents")
@@ -48,14 +46,6 @@ public class Document {
 
     @Column(length = 5000)
     private String summary;
-
-    @ManyToMany
-    @JoinTable(name = "document_tags",
-            joinColumns = @JoinColumn(name = "document_id"),
-            inverseJoinColumns = @JoinColumn(name = "tag_id"),
-            uniqueConstraints = @UniqueConstraint(columnNames = {"document_id", "tag_id"}))
-    @Builder.Default
-    private Set<Tag> tags = new HashSet<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -14,9 +14,7 @@ public interface DocumentMapper {
     @Mapping(target = "summary", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "tags", ignore = true)
     Document toEntity(DocumentRequest request);
 
-    @Mapping(target = "tags", ignore = true)
     DocumentResponse toResponse(Document document);
 }

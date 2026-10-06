@@ -2,7 +2,6 @@ package at.fhtw.service;
 
 import at.fhtw.dto.DocumentRequest;
 import at.fhtw.dto.DocumentResponse;
-import at.fhtw.dto.TagResponse;
 import at.fhtw.entity.Document;
 import at.fhtw.entity.DocumentStatus;
 import at.fhtw.exception.ResourceNotFoundException;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Service
@@ -72,11 +70,6 @@ public class DocumentService {
     }
 
     private DocumentResponse toResponse(Document document) {
-        DocumentResponse response = mapper.toResponse(document);
-        response.setTags(document.getTags().stream()
-                .map(tag -> new TagResponse(tag.getId(), tag.getName()))
-                .sorted(Comparator.comparing(TagResponse::name))
-                .toList());
-        return response;
+        return mapper.toResponse(document);
     }
 }
