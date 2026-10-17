@@ -38,3 +38,34 @@ curl http://localhost/api/health  # proxied REST (expect OK)
 ```
 
 Dashboard (`/`), collections (`/collections`) and document detail (`/documents/:id`) are served by nginx with SPA fallback. Forms validate client-side (`DMS_Frontend/src/lib/validation.ts`) and server-side (Jakarta validation, e.g. empty title yields 400).
+
+## Sprint 3
+
+Queues integration with RabbitMQ for asynchronous document processing:
+
+```sh
+docker compose build
+docker compose up -d
+```
+
+Services:
+
+| Service | Port | Description |
+| --- | --- | --- |
+| postgres | 5432 | PostgreSQL database |
+| dms-backend | 8081 | REST API |
+| dms-frontend | 80 | Web UI (nginx) |
+| rabbitmq | 5672 / 15672 | Message broker (AMQP + Management UI) |
+| dms-ocr-worker | - | Empty OCR worker, logs incoming queue messages |
+
+Endpoints:
+
+| Method | Path | Action |
+| --- | --- | --- |
+| `POST` | `/api/documents` | Create document and enqueue OCR job |
+
+On document upload, the REST server sends a message to the RabbitMQ queue `dms.document.ocr`. The empty OCR worker consumes the queue and logs each message (for real OCR processing in Sprint 4).
+
+Layer-specific exceptions (`QueueException`, `DocumentServiceException`, `RepositoryException`) are handled by `GlobalExceptionHandler`. Logging is integrated at critical positions (upload, queue send, errors).
+
+Run unit tests from `DMS_Backend` with JDK 25 or newer: `mvn clean test`. `mvn verify` enforces at least 71% line coverage via JaCoCo.
