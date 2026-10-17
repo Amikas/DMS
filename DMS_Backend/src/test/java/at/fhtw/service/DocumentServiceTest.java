@@ -34,6 +34,9 @@ public class DocumentServiceTest {
     @Mock
     private DocumentMapper documentMapper;
 
+    @Mock
+    private DocumentQueueSender queueSender;
+
     @InjectMocks
     private DocumentService documentService;
 
@@ -72,6 +75,28 @@ public class DocumentServiceTest {
         });
         when(documentMapper.toEntity(any(DocumentRequest.class))).thenReturn(document);
         when(documentMapper.toResponse(any(Document.class))).thenReturn(DocumentResponse.builder().id(1L).title("NewDoc").build());
+
+        DocumentResponse response = documentService.create(request);
+
+        assertNotNull(response);
+        assertEquals("NewDoc", response.getTitle());
+    }
+
+    @Test
+    void create_shouldNotFail_whenQueueSendFails() {
+        DocumentRequest request = new DocumentRequest();
+        request.setTitle("NewDoc");
+        Document document = new Document();
+        document.setId(1L);
+        document.setTitle("NewDoc");
+        when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+            Document d = invocation.getArgument(0);
+            d.setId(1L);
+            return d;
+        });
+        when(documentMapper.toEntity(any(DocumentRequest.class))).thenReturn(document);
+        when(documentMapper.toResponse(any(Document.class))).thenReturn(DocumentResponse.builder().id(1L).title("NewDoc").build());
+        doThrow(new RuntimeException("Rabbit down")).when(queueSender).sendDocumentUploaded(anyLong());
 
         DocumentResponse response = documentService.create(request);
 

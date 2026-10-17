@@ -24,6 +24,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dms
       SPRING_DATASOURCE_USERNAME: dms
@@ -36,5 +38,48 @@ services:
       - "80:80"
     depends_on:
       - dms-backend
+  
+  rabbitmq:
+    image: rabbitmq:latest
+    container_name: dms_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: dms
+      RABBITMQ_DEFAULT_PASS: dms
+    configs:
+      - source: rabbitmq-plugins
+        target: /etc/rabbitmq/enabled_plugins
+    volumes:
+      - rabbitmq-lib:/var/lib/rabbitmq/
+      - rabbitmq-log:/var/log/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dms-ocr-worker:
+    build: ./DMS_OCR_Worker
+    container_name: dms-ocr-worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: dms
+      RABBITMQ_PASS: dms
+
+configs:
+  rabbitmq-plugins:
+    content: "[rabbitmq_management]." 
+
 volumes:
   postgres_data:
+  rabbitmq-lib:
+    driver: local
+  rabbitmq-log:
+    driver: local
