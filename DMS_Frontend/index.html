@@ -4,7 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dms-frontend</title>
+    <meta name="color-scheme" content="dark light" />
+    <meta name="description" content="Document management system: archive, collections and document details." />
+    <title>Document Management System</title>
+    <script>
+      // Pre-paint theme so the first frame already matches the stored/system preference.
+      // Mirrors next-themes storage: localStorage key "theme" holds "light" | "dark" | "system".
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (error) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
