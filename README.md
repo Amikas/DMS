@@ -22,7 +22,7 @@ Collection endpoints:
 | `GET`, `PUT`, `DELETE` | `/api/collections/{id}` | View, rename, or delete a collection |
 | `PUT`, `DELETE` | `/api/collections/{id}/documents/{documentId}` | Add or remove a document |
 
-`GET /api/collections/{id}` returns the collection name and its document IDs. Document metadata is available through `/api/documents`; PDF upload is scheduled for a later sprint.
+`GET /api/collections/{id}` returns the collection name and its document IDs. Document metadata is available through `/api/documents`.
 
 `mvn verify` runs the tests, produces a JaCoCo report in `DMS_Backend/target/site/jacoco`, and enforces at least 71% line coverage.
 
@@ -41,31 +41,13 @@ Dashboard (`/`), collections (`/collections`) and document detail (`/documents/:
 
 ## Sprint 3
 
-Queues integration with RabbitMQ for asynchronous document processing:
+The dashboard uploads PDFs (maximum 10 MB); the API also accepts multipart uploads:
 
 ```sh
-docker compose build
-docker compose up -d
+curl --fail -F title=Example -F file=@example.pdf http://localhost/api/documents
+docker compose logs dms-ocr-worker  # expect "Received OCR job"
 ```
 
-Services:
+PDFs live in the `document_uploads` volume until MinIO arrives in Sprint 4. Each upload sends a job to `dms.document.ocr`; the empty worker logs and acknowledges it. Broker failures return 500 and roll back the document and uploaded file. This is not crash-atomic across PostgreSQL and RabbitMQ; an outbox is deferred.
 
-| Service | Port | Description |
-| --- | --- | --- |
-| postgres | 5432 | PostgreSQL database |
-| dms-backend | 8081 | REST API |
-| dms-frontend | 80 | Web UI (nginx) |
-| rabbitmq | 5672 / 15672 | Message broker (AMQP + Management UI) |
-| dms-ocr-worker | - | Empty OCR worker, logs incoming queue messages |
-
-Endpoints:
-
-| Method | Path | Action |
-| --- | --- | --- |
-| `POST` | `/api/documents` | Create document and enqueue OCR job |
-
-On document upload, the REST server sends a message to the RabbitMQ queue `dms.document.ocr`. The empty OCR worker consumes the queue and logs each message (for real OCR processing in Sprint 4).
-
-Layer-specific exceptions (`QueueException`, `DocumentServiceException`, `RepositoryException`) are handled by `GlobalExceptionHandler`. Logging is integrated at critical positions (upload, queue send, errors).
-
-Run unit tests from `DMS_Backend` with JDK 25 or newer: `mvn clean test`. `mvn verify` enforces at least 71% line coverage via JaCoCo.
+RabbitMQ console: http://localhost:15672 (`dms` / `dms`). Queue/storage errors and Spring's repository exceptions are logged server-side without exposing internal details. Malformed requests remain 400 responses.

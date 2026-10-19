@@ -40,10 +40,10 @@ export default function Dashboard() {
     );
   }, [docs, query, searchError]);
 
-  async function handleCreate(data: DocumentRequest) {
+  async function handleCreate(data: DocumentRequest, file?: File) {
     setCreating(true);
     try {
-      const created = await createDocument(data);
+      const created = await createDocument(data, file);
       setDocs((prev) => [created, ...prev]);
       setShowCreate(false);
     } finally {
@@ -82,7 +82,7 @@ export default function Dashboard() {
       {showCreate && (
         <div className="card">
           <h2>New document</h2>
-          <DocumentForm pending={creating} onSubmit={handleCreate} />
+          <DocumentForm upload pending={creating} onSubmit={handleCreate} />
         </div>
       )}
 

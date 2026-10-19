@@ -7,6 +7,7 @@ import at.fhtw.entity.DocumentStatus;
 import at.fhtw.entity.Collection;
 import at.fhtw.entity.CollectionDocument;
 import at.fhtw.exception.ResourceNotFoundException;
+import at.fhtw.exception.QueueException;
 import at.fhtw.mapper.DocumentMapper;
 import at.fhtw.repository.CollectionDocumentRepository;
 import at.fhtw.repository.DocumentRepository;
@@ -83,25 +84,14 @@ public class DocumentServiceTest {
     }
 
     @Test
-    void create_shouldNotFail_whenQueueSendFails() {
-        DocumentRequest request = new DocumentRequest();
-        request.setTitle("NewDoc");
-        Document document = new Document();
-        document.setId(1L);
-        document.setTitle("NewDoc");
-        when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
-            Document d = invocation.getArgument(0);
-            d.setId(1L);
-            return d;
-        });
-        when(documentMapper.toEntity(any(DocumentRequest.class))).thenReturn(document);
-        when(documentMapper.toResponse(any(Document.class))).thenReturn(DocumentResponse.builder().id(1L).title("NewDoc").build());
-        doThrow(new RuntimeException("Rabbit down")).when(queueSender).sendDocumentUploaded(anyLong());
+    void create_shouldFail_whenQueueSendFails() {
+        DocumentRequest request = DocumentRequest.builder().title("NewDoc").build();
+        Document document = Document.builder().id(1L).title("NewDoc").build();
+        when(documentMapper.toEntity(request)).thenReturn(document);
+        when(documentRepository.save(document)).thenReturn(document);
+        doThrow(new QueueException("Rabbit down")).when(queueSender).sendDocumentUploaded(1L);
 
-        DocumentResponse response = documentService.create(request);
-
-        assertNotNull(response);
-        assertEquals("NewDoc", response.getTitle());
+        assertThrows(QueueException.class, () -> documentService.create(request));
     }
 
     @Test

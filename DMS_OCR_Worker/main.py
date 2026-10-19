@@ -1,5 +1,4 @@
 import pika
-import json
 import os
 import time
 import logging
@@ -27,25 +26,21 @@ def connect():
 
 
 def callback(ch, method, properties, body):
-    try:
-        message = json.loads(body)
-    except Exception:
-        message = body.decode('utf-8', errors='replace')
-    logger.info("Received OCR job: %s", message)
+    logger.info("Received OCR job: %s", body.decode('utf-8', errors='replace'))
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
 
 def main():
     while True:
         try:
-            connection = connect()
-            channel = connection.channel()
-            channel.queue_declare(queue=QUEUE_NAME, durable=True)
-            channel.basic_qos(prefetch_count=1)
-            channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
-            logger.info("OCR worker started, waiting for messages on queue '%s'...", QUEUE_NAME)
-            channel.start_consuming()
-        except Exception as e:
+            with connect() as connection:
+                channel = connection.channel()
+                channel.queue_declare(queue=QUEUE_NAME, durable=True)
+                channel.basic_qos(prefetch_count=1)
+                channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
+                logger.info("OCR worker started, waiting for messages on queue '%s'...", QUEUE_NAME)
+                channel.start_consuming()
+        except pika.exceptions.AMQPError as e:
             logger.error("Connection error: %s. Retrying in 5s...", e)
             time.sleep(5)
 

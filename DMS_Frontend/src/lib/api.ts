@@ -21,7 +21,7 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
     ...init,
   });
 
@@ -63,8 +63,13 @@ export function getDocument(id: number): Promise<DocumentResponse> {
   return request<DocumentResponse>(`/api/documents/${id}`);
 }
 
-export function createDocument(data: DocumentRequest): Promise<DocumentResponse> {
-  return request<DocumentResponse>('/api/documents', json(data));
+export function createDocument(data: DocumentRequest, file?: File): Promise<DocumentResponse> {
+  if (!file) return request<DocumentResponse>('/api/documents', json(data));
+  const body = new FormData();
+  body.set('title', data.title);
+  body.set('description', data.description ?? '');
+  body.set('file', file);
+  return request<DocumentResponse>('/api/documents', { method: 'POST', body });
 }
 
 export function updateDocument(id: number, data: DocumentRequest): Promise<DocumentResponse> {

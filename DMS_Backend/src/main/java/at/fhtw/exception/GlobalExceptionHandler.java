@@ -1,7 +1,7 @@
 package at.fhtw.exception;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -12,77 +12,32 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException ex) {
-        log.warn("Resource not found: {}", ex.getMessage());
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.NOT_FOUND.value());
-        body.put("error", "Not Found");
-        body.put("message", ex.getMessage());
-        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
+        return error(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
-        log.warn("Validation error: {}", ex.getBindingResult().getAllErrors());
         Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(fieldError ->
-                errors.put(fieldError.getField(), fieldError.getDefaultMessage()));
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.BAD_REQUEST.value());
-        body.put("error", "Bad Request");
-        body.put("validationErrors", errors);
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        ex.getBindingResult().getFieldErrors().forEach(field ->
+                errors.put(field.getField(), field.getDefaultMessage()));
+        return ResponseEntity.badRequest().body(Map.of("timestamp", LocalDateTime.now(),
+                "status", 400, "error", "Bad Request", "validationErrors", errors));
     }
 
-    @ExceptionHandler(QueueException.class)
-    public ResponseEntity<Map<String, Object>> handleQueueException(QueueException ex) {
-        log.error("Queue error: {}", ex.getMessage(), ex);
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put("error", "Queue Error");
-        body.put("message", ex.getMessage());
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    @ExceptionHandler({QueueException.class, DocumentServiceException.class, DataAccessException.class})
+    public ResponseEntity<Map<String, Object>> handleInfrastructureException(RuntimeException ex) {
+        log.error("Document operation failed", ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Document operation failed; please retry.");
     }
 
-    @ExceptionHandler(DocumentServiceException.class)
-    public ResponseEntity<Map<String, Object>> handleDocumentServiceException(DocumentServiceException ex) {
-        log.error("Document service error: {}", ex.getMessage(), ex);
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put("error", "Document Service Error");
-        body.put("message", ex.getMessage());
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    @ExceptionHandler(RepositoryException.class)
-    public ResponseEntity<Map<String, Object>> handleRepositoryException(RepositoryException ex) {
-        log.error("Repository error: {}", ex.getMessage(), ex);
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put("error", "Repository Error");
-        body.put("message", ex.getMessage());
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<Map<String, Object>> handleGenericRuntimeException(RuntimeException ex) {
-        log.error("Unexpected error: {}", ex.getMessage(), ex);
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put("error", "Internal Server Error");
-        body.put("message", ex.getMessage());
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
+        return ResponseEntity.status(status).body(Map.of("timestamp", LocalDateTime.now(),
+                "status", status.value(), "error", status.getReasonPhrase(), "message", message));
     }
 }

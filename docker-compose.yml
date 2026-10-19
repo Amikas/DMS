@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:16
-    container_name: dms-postgres
     environment:
       POSTGRES_DB: dms
       POSTGRES_USER: dms
@@ -18,7 +17,8 @@ services:
 
   dms-backend:
     build: ./DMS_Backend
-    container_name: dms-backend
+    volumes:
+      - document_uploads:/app/uploads
     ports:
       - "8081:8081"
     depends_on:
@@ -33,15 +33,13 @@ services:
 
   dms-frontend:
     build: ./DMS_Frontend
-    container_name: dms-frontend
     ports:
       - "80:80"
     depends_on:
       - dms-backend
   
   rabbitmq:
-    image: rabbitmq:latest
-    container_name: dms_rabbitmq
+    image: rabbitmq:4-management
     restart: always
     ports:
       - "5672:5672"
@@ -49,12 +47,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: dms
       RABBITMQ_DEFAULT_PASS: dms
-    configs:
-      - source: rabbitmq-plugins
-        target: /etc/rabbitmq/enabled_plugins
     volumes:
       - rabbitmq-lib:/var/lib/rabbitmq/
-      - rabbitmq-log:/var/log/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_running"]
       interval: 10s
@@ -63,7 +57,6 @@ services:
 
   dms-ocr-worker:
     build: ./DMS_OCR_Worker
-    container_name: dms-ocr-worker
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -73,13 +66,7 @@ services:
       RABBITMQ_USER: dms
       RABBITMQ_PASS: dms
 
-configs:
-  rabbitmq-plugins:
-    content: "[rabbitmq_management]." 
-
 volumes:
+  document_uploads:
   postgres_data:
   rabbitmq-lib:
-    driver: local
-  rabbitmq-log:
-    driver: local
