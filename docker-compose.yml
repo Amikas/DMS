@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:16
-    container_name: dms-postgres
     environment:
       POSTGRES_DB: dms
       POSTGRES_USER: dms
@@ -18,11 +17,14 @@ services:
 
   dms-backend:
     build: ./DMS_Backend
-    container_name: dms-backend
+    volumes:
+      - document_uploads:/app/uploads
     ports:
       - "8081:8081"
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dms
@@ -31,10 +33,40 @@ services:
 
   dms-frontend:
     build: ./DMS_Frontend
-    container_name: dms-frontend
     ports:
       - "80:80"
     depends_on:
       - dms-backend
+  
+  rabbitmq:
+    image: rabbitmq:4-management
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: dms
+      RABBITMQ_DEFAULT_PASS: dms
+    volumes:
+      - rabbitmq-lib:/var/lib/rabbitmq/
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dms-ocr-worker:
+    build: ./DMS_OCR_Worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: dms
+      RABBITMQ_PASS: dms
+
 volumes:
+  document_uploads:
   postgres_data:
+  rabbitmq-lib:

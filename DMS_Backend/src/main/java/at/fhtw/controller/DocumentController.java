@@ -4,8 +4,10 @@ import at.fhtw.dto.DocumentRequest;
 import at.fhtw.dto.DocumentResponse;
 import at.fhtw.service.DocumentService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -29,9 +31,15 @@ public class DocumentController {
         return ResponseEntity.ok(documentService.getById(id));
     }
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<DocumentResponse> create(@Valid @RequestBody DocumentRequest request) {
         return ResponseEntity.ok(documentService.create(request));
+    }
+
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<DocumentResponse> upload(@Valid @ModelAttribute DocumentRequest request,
+                                                   @RequestPart MultipartFile file) {
+        return ResponseEntity.ok(documentService.upload(request, file));
     }
 
     @PutMapping("/{id}")

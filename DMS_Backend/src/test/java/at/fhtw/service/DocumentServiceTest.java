@@ -7,6 +7,7 @@ import at.fhtw.entity.DocumentStatus;
 import at.fhtw.entity.Collection;
 import at.fhtw.entity.CollectionDocument;
 import at.fhtw.exception.ResourceNotFoundException;
+import at.fhtw.exception.QueueException;
 import at.fhtw.mapper.DocumentMapper;
 import at.fhtw.repository.CollectionDocumentRepository;
 import at.fhtw.repository.DocumentRepository;
@@ -33,6 +34,9 @@ public class DocumentServiceTest {
 
     @Mock
     private DocumentMapper documentMapper;
+
+    @Mock
+    private DocumentQueueSender queueSender;
 
     @InjectMocks
     private DocumentService documentService;
@@ -77,6 +81,17 @@ public class DocumentServiceTest {
 
         assertNotNull(response);
         assertEquals("NewDoc", response.getTitle());
+    }
+
+    @Test
+    void create_shouldFail_whenQueueSendFails() {
+        DocumentRequest request = DocumentRequest.builder().title("NewDoc").build();
+        Document document = Document.builder().id(1L).title("NewDoc").build();
+        when(documentMapper.toEntity(request)).thenReturn(document);
+        when(documentRepository.save(document)).thenReturn(document);
+        doThrow(new QueueException("Rabbit down")).when(queueSender).sendDocumentUploaded(1L);
+
+        assertThrows(QueueException.class, () -> documentService.create(request));
     }
 
     @Test

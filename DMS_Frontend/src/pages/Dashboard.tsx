@@ -142,10 +142,10 @@ export default function Dashboard() {
     )
   }
 
-  async function handleCreate(data: DocumentRequest) {
+  async function handleCreate(data: DocumentRequest, file?: File) {
     setCreating(true)
     try {
-      const created = await createDocument(data)
+      const created = await createDocument(data, file)
       setDocs((prev) => [created, ...prev])
       setShowCreate(false)
       toast.success('Document created.')
@@ -181,7 +181,7 @@ export default function Dashboard() {
             <CardTitle>New document</CardTitle>
           </CardHeader>
           <CardContent>
-            <DocumentForm pending={creating} onSubmit={handleCreate} />
+            <DocumentForm upload pending={creating} onSubmit={handleCreate} />
           </CardContent>
         </Card>
       )}

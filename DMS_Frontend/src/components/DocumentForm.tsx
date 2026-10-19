@@ -15,13 +15,15 @@ import { Textarea } from '@/components/ui/textarea'
 interface Props {
   initial?: DocumentRequest
   pending?: boolean
-  onSubmit: (data: DocumentRequest) => Promise<void>
+  upload?: boolean
+  onSubmit: (data: DocumentRequest, file?: File) => Promise<void>
 }
 
 const EMPTY: DocumentRequest = { title: '' }
 
-export default function DocumentForm({ initial = EMPTY, pending = false, onSubmit }: Props) {
+export default function DocumentForm({ initial = EMPTY, pending = false, upload = false, onSubmit }: Props) {
   const [form, setForm] = useState<DocumentRequest>(initial)
+  const [file, setFile] = useState<File>()
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [serverError, setServerError] = useState<string | null>(null)
@@ -46,6 +48,10 @@ export default function DocumentForm({ initial = EMPTY, pending = false, onSubmi
     setTouched({ title: true })
     if (!isValid(clientErrors)) return
     setServerError(null)
+    if (upload && !file) {
+      setServerError('Select a PDF file.')
+      return
+    }
     try {
       await onSubmit({
         title: form.title.trim(),
@@ -54,7 +60,7 @@ export default function DocumentForm({ initial = EMPTY, pending = false, onSubmi
         fileName: form.fileName?.trim() || undefined,
         fileSize: form.fileSize ?? undefined,
         contentType: form.contentType?.trim() || undefined,
-      })
+      }, file)
     } catch (err) {
       if (err instanceof ApiError && err.validationErrors) {
         setErrors(err.validationErrors)
@@ -96,66 +102,13 @@ export default function DocumentForm({ initial = EMPTY, pending = false, onSubmi
           <FieldError>{errors.description}</FieldError>
         </Field>
 
-        <FieldGroup className="grid gap-4 sm:grid-cols-2">
-          <Field data-invalid={errors.fileName ? true : undefined}>
-            <FieldLabel htmlFor="doc-filename">File name</FieldLabel>
-            <Input
-              id="doc-filename"
-              placeholder="q3-report.pdf"
-              value={form.fileName ?? ''}
-              onChange={(e) => set('fileName', e.target.value)}
-              onBlur={() => blur('fileName')}
-              aria-invalid={Boolean(errors.fileName)}
-              maxLength={255}
-            />
-            <FieldError>{errors.fileName}</FieldError>
+        {upload && (
+          <Field>
+            <FieldLabel htmlFor="doc-file">PDF file * (maximum 10 MB)</FieldLabel>
+            <Input id="doc-file" type="file" accept="application/pdf,.pdf" required
+              onChange={(e) => setFile(e.target.files?.[0])} />
           </Field>
-
-          <Field data-invalid={errors.filePath ? true : undefined}>
-            <FieldLabel htmlFor="doc-filepath">File path</FieldLabel>
-            <Input
-              id="doc-filepath"
-              placeholder="/archive/finance/q3-report.pdf"
-              value={form.filePath ?? ''}
-              onChange={(e) => set('filePath', e.target.value)}
-              onBlur={() => blur('filePath')}
-              aria-invalid={Boolean(errors.filePath)}
-              maxLength={255}
-            />
-            <FieldError>{errors.filePath}</FieldError>
-          </Field>
-
-          <Field data-invalid={errors.fileSize ? true : undefined}>
-            <FieldLabel htmlFor="doc-filesize">File size (bytes)</FieldLabel>
-            <Input
-              id="doc-filesize"
-              type="number"
-              min={0}
-              step={1}
-              value={form.fileSize ?? ''}
-              onChange={(e) =>
-                set('fileSize', e.target.value === '' ? undefined : Number(e.target.value))
-              }
-              onBlur={() => blur('fileSize')}
-              aria-invalid={Boolean(errors.fileSize)}
-            />
-            <FieldError>{errors.fileSize}</FieldError>
-          </Field>
-
-          <Field data-invalid={errors.contentType ? true : undefined}>
-            <FieldLabel htmlFor="doc-contenttype">Content type</FieldLabel>
-            <Input
-              id="doc-contenttype"
-              placeholder="application/pdf"
-              value={form.contentType ?? ''}
-              onChange={(e) => set('contentType', e.target.value)}
-              onBlur={() => blur('contentType')}
-              aria-invalid={Boolean(errors.contentType)}
-              maxLength={255}
-            />
-            <FieldError>{errors.contentType}</FieldError>
-          </Field>
-        </FieldGroup>
+        )}
 
         {serverError && (
           <Alert variant="destructive">
