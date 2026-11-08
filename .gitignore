@@ -29,3 +29,6 @@ replay_pid*
 # macOS
 .DS_Store
 uploads/
+
+# Secrets (nie committen – Vorlage: .env.example)
+.env

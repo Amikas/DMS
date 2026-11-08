@@ -28,6 +28,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dms
       SPRING_DATASOURCE_USERNAME: dms
       SPRING_DATASOURCE_PASSWORD: dms
+      DMS_S3_ENDPOINT: http://librefs:9000
+      DMS_S3_ACCESS_KEY: ${LIBREFS_ROOT_USER:-dms}
+      DMS_S3_SECRET_KEY: ${LIBREFS_ROOT_PASSWORD:-dms12345}
 
   dms-frontend:
     build: ../DMS_Frontend

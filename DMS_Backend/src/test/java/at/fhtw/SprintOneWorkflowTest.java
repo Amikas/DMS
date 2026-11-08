@@ -3,24 +3,19 @@ package at.fhtw;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import at.fhtw.repository.DocumentRepository;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
+import at.fhtw.service.ObjectStorageService;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -29,7 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @SpringBootTest
@@ -43,12 +38,7 @@ class SprintOneWorkflowTest {
     @Autowired private ObjectMapper json;
     @Autowired private DocumentRepository documents;
     @MockitoBean private RabbitTemplate rabbit;
-    @TempDir static Path uploads;
-
-    @DynamicPropertySource
-    static void storage(DynamicPropertyRegistry properties) {
-        properties.add("dms.storage-path", () -> uploads.toString());
-    }
+    @MockitoBean private ObjectStorageService objectStorage;
 
     @Test
     void uploadsPdfAndRemovesFailedUploadsOnRollback() throws Exception {
@@ -58,9 +48,10 @@ class SprintOneWorkflowTest {
         JsonNode uploaded = json.readTree(mvc.perform(multipart("/api/documents").file(file)
                         .param("title", "PDF").param("filePath", "/untrusted/path"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-        Path stored = Path.of(uploaded.get("filePath").asText());
-        assertEquals(uploads, stored.getParent());
-        assertArrayEquals(pdf, Files.readAllBytes(stored));
+        String key = uploaded.get("filePath").asText();
+        assertTrue(key.startsWith("documents/"), "filePath should be an object key, was: " + key);
+        assertTrue(key.endsWith(".pdf"));
+        verify(objectStorage).putObject(eq(key), eq(pdf), eq("application/pdf"));
         assertEquals(pdf.length, uploaded.get("fileSize").asInt());
         verify(rabbit).convertAndSend(anyString(), anyString(),
                 contains("\"documentId\":" + uploaded.get("id").asLong() + ","));
@@ -71,9 +62,8 @@ class SprintOneWorkflowTest {
         mvc.perform(multipart("/api/documents").file(file).param("title", "Rollback"))
                 .andExpect(status().isInternalServerError());
         assertEquals(count, documents.count());
-        try (var files = Files.list(uploads)) {
-            assertEquals(1, files.count());
-        }
+        // failed queue send must roll back the object store upload
+        verify(objectStorage, atLeastOnce()).deleteObject(startsWith("documents/"));
     }
 
     @Test

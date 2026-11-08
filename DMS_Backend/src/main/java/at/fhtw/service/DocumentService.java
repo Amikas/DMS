@@ -10,19 +10,15 @@ import at.fhtw.mapper.DocumentMapper;
 import at.fhtw.repository.CollectionDocumentRepository;
 import at.fhtw.repository.DocumentRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import java.util.UUID;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -35,16 +31,15 @@ public class DocumentService {
     private final CollectionDocumentRepository memberships;
     private final DocumentQueueSender queueSender;
     private final DocumentMapper mapper;
-
-    @Value("${dms.storage-path:uploads}")
-    private Path storagePath;
+    private final ObjectStorageService objectStorage;
 
     public DocumentService(DocumentRepository documentRepository, CollectionDocumentRepository memberships,
-                           DocumentMapper mapper, DocumentQueueSender queueSender) {
+                           DocumentMapper mapper, DocumentQueueSender queueSender, ObjectStorageService objectStorage) {
         this.documentRepository = documentRepository;
         this.memberships = memberships;
         this.mapper = mapper;
         this.queueSender = queueSender;
+        this.objectStorage = objectStorage;
     }
 
     public List<DocumentResponse> getAll() {
@@ -78,27 +73,27 @@ public class DocumentService {
             if (file.getOriginalFilename() != null && file.getOriginalFilename().length() > 255) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File name exceeds 255 characters");
             }
-            Path path = Files.createTempFile(Files.createDirectories(storagePath), "document-", ".pdf");
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCompletion(int status) {
-                    if (status != STATUS_COMMITTED) {
-                        try {
-                            Files.deleteIfExists(path);
-                        } catch (IOException ex) {
-                            log.error("Failed to clean up rolled-back upload {}", path, ex);
-                        }
-                    }
-                }
-            });
-            Files.write(path, pdf);
-            request.setFilePath(path.toString());
+
+            String key = "documents/" + UUID.randomUUID() + ".pdf";
+            objectStorage.putObject(key, pdf, "application/pdf");
+
+            request.setFilePath(key);
             request.setFileName(file.getOriginalFilename());
             request.setFileSize(file.getSize());
             request.setContentType("application/pdf");
-            return create(request);
+
+            try {
+                return create(request);
+            } catch (RuntimeException ex) {
+                try {
+                    objectStorage.deleteObject(key);
+                } catch (RuntimeException cleanup) {
+                    log.error("Failed to roll back object {}", key, cleanup);
+                }
+                throw ex;
+            }
         } catch (IOException ex) {
-            throw new DocumentServiceException("Failed to store PDF", ex);
+            throw new DocumentServiceException("Failed to read PDF", ex);
         }
     }
 

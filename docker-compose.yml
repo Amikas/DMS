@@ -3,22 +3,20 @@ services:
     image: postgres:16
     environment:
       POSTGRES_DB: dms
-      POSTGRES_USER: dms
-      POSTGRES_PASSWORD: dms
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dms -d dms"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d dms"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   dms-backend:
     build: ./DMS_Backend
-    volumes:
-      - document_uploads:/app/uploads
     ports:
       - "8081:8081"
     depends_on:
@@ -26,10 +24,15 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      librefs:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dms
-      SPRING_DATASOURCE_USERNAME: dms
-      SPRING_DATASOURCE_PASSWORD: dms
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      DMS_S3_ENDPOINT: http://librefs:9000
+      DMS_S3_ACCESS_KEY: ${LIBREFS_ROOT_USER}
+      DMS_S3_SECRET_KEY: ${LIBREFS_ROOT_PASSWORD}
 
   dms-frontend:
     build: ./DMS_Frontend
@@ -37,7 +40,7 @@ services:
       - "80:80"
     depends_on:
       - dms-backend
-  
+
   rabbitmq:
     image: rabbitmq:4-management
     restart: always
@@ -45,8 +48,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: dms
-      RABBITMQ_DEFAULT_PASS: dms
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     volumes:
       - rabbitmq-lib:/var/lib/rabbitmq/
     healthcheck:
@@ -63,10 +66,27 @@ services:
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USER: dms
-      RABBITMQ_PASS: dms
+      RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS}
+
+  librefs:
+    image: ghcr.io/librefs/librefs:latest
+    command: server /data --console-address :9001
+    ports:
+      - "9002:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${LIBREFS_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${LIBREFS_ROOT_PASSWORD}
+    volumes:
+      - librefs_data:/data
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q 200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  document_uploads:
   postgres_data:
   rabbitmq-lib:
+  librefs_data:
