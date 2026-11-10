@@ -1,1 +1,5 @@
 pika==1.4.4
+boto3==1.43.127
+pypdf==6.3.0
+pytesseract==0.3.13
+pillow==12.0.0
