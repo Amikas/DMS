@@ -2,25 +2,24 @@ package at.fhtw;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import at.fhtw.repository.DocumentRepository;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -29,7 +28,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.Mockito.*;
 
 @SpringBootTest
@@ -43,12 +41,7 @@ class SprintOneWorkflowTest {
     @Autowired private ObjectMapper json;
     @Autowired private DocumentRepository documents;
     @MockitoBean private RabbitTemplate rabbit;
-    @TempDir static Path uploads;
-
-    @DynamicPropertySource
-    static void storage(DynamicPropertyRegistry properties) {
-        properties.add("dms.storage-path", () -> uploads.toString());
-    }
+    @MockitoBean private S3Client storageClient;
 
     @Test
     void uploadsPdfAndRemovesFailedUploadsOnRollback() throws Exception {
@@ -58,9 +51,11 @@ class SprintOneWorkflowTest {
         JsonNode uploaded = json.readTree(mvc.perform(multipart("/api/documents").file(file)
                         .param("title", "PDF").param("filePath", "/untrusted/path"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-        Path stored = Path.of(uploaded.get("filePath").asText());
-        assertEquals(uploads, stored.getParent());
-        assertArrayEquals(pdf, Files.readAllBytes(stored));
+        String objectKey = uploaded.get("filePath").asText();
+        ArgumentCaptor<PutObjectRequest> putArgs = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(storageClient).putObject(putArgs.capture(), any(RequestBody.class));
+        assertEquals(objectKey, putArgs.getValue().key());
+        assertEquals("documents", putArgs.getValue().bucket());
         assertEquals(pdf.length, uploaded.get("fileSize").asInt());
         verify(rabbit).convertAndSend(anyString(), anyString(),
                 contains("\"documentId\":" + uploaded.get("id").asLong() + ","));
@@ -71,9 +66,7 @@ class SprintOneWorkflowTest {
         mvc.perform(multipart("/api/documents").file(file).param("title", "Rollback"))
                 .andExpect(status().isInternalServerError());
         assertEquals(count, documents.count());
-        try (var files = Files.list(uploads)) {
-            assertEquals(1, files.count());
-        }
+        verify(storageClient, times(1)).deleteObject(any(DeleteObjectRequest.class));
     }
 
     @Test
