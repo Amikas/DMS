@@ -3,6 +3,7 @@ package at.fhtw.controller;
 import at.fhtw.dto.DocumentRequest;
 import at.fhtw.dto.DocumentResponse;
 import at.fhtw.service.DocumentService;
+import at.fhtw.service.SearchService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,8 +22,21 @@ public class DocumentControllerTest {
     @Mock
     private DocumentService documentService;
 
+    @Mock
+    private SearchService searchService;
+
     @InjectMocks
     private DocumentController controller;
+
+    @Test
+    void search_shouldReturnMatches() {
+        when(searchService.search("Hello")).thenReturn(List.of(DocumentResponse.builder().id(1L).title("HelloWorld").build()));
+
+        ResponseEntity<List<DocumentResponse>> result = controller.search("Hello");
+
+        assertEquals(200, result.getStatusCode().value());
+        assertEquals("HelloWorld", result.getBody().get(0).getTitle());
+    }
 
     @Test
     void getAll_shouldReturnList() {

@@ -17,8 +17,8 @@ public class DocumentQueueSender {
         this.rabbitTemplate = rabbitTemplate;
     }
 
-    public void sendDocumentUploaded(Long documentId) {
-        String message = "{\"documentId\":" + documentId + ",\"uploadedAt\":\"" + LocalDateTime.now() + "\"}";
+    public void sendDocumentUploaded(Long documentId, String objectKey) {
+        String message = "{\"documentId\":" + documentId + ",\"objectKey\":\"" + objectKey + "\",\"uploadedAt\":\"" + LocalDateTime.now() + "\"}";
         try {
             rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.ROUTING_KEY, message);
         } catch (AmqpException ex) {

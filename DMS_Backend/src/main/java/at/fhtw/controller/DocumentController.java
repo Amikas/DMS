@@ -3,6 +3,7 @@ package at.fhtw.controller;
 import at.fhtw.dto.DocumentRequest;
 import at.fhtw.dto.DocumentResponse;
 import at.fhtw.service.DocumentService;
+import at.fhtw.service.SearchService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,14 +17,21 @@ import java.util.List;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final SearchService searchService;
 
-    public DocumentController(DocumentService documentService) {
+    public DocumentController(DocumentService documentService, SearchService searchService) {
         this.documentService = documentService;
+        this.searchService = searchService;
     }
 
     @GetMapping
     public ResponseEntity<List<DocumentResponse>> getAll() {
         return ResponseEntity.ok(documentService.getAll());
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<DocumentResponse>> search(@RequestParam String q) {
+        return ResponseEntity.ok(searchService.search(q));
     }
 
     @GetMapping("/{id}")

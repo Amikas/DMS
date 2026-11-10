@@ -24,7 +24,7 @@ class DocumentQueueSenderTest {
 
     @Test
     void sendDocumentUploaded_shouldSendMessageToExchange() {
-        queueSender.sendDocumentUploaded(42L);
+        queueSender.sendDocumentUploaded(42L, "abc.pdf");
 
         verify(rabbitTemplate).convertAndSend(
                 eq(RabbitConfig.EXCHANGE),
@@ -37,6 +37,6 @@ class DocumentQueueSenderTest {
     void sendDocumentUploaded_shouldWrapBrokerFailure() {
         doThrow(new AmqpException("offline")).when(rabbitTemplate)
                 .convertAndSend(anyString(), anyString(), anyString());
-        assertThrows(QueueException.class, () -> queueSender.sendDocumentUploaded(42L));
+        assertThrows(QueueException.class, () -> queueSender.sendDocumentUploaded(42L, "abc.pdf"));
     }
 }

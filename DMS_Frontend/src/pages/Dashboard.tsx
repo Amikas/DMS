@@ -13,7 +13,7 @@ import {
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
-import { createDocument, listDocuments } from '../lib/api'
+import { createDocument, listDocuments, searchDocuments } from '../lib/api'
 import { formatBytes, fileExtension, pluralize } from '../lib/format'
 import { validateSearch } from '../lib/validation'
 import type { DocumentRequest, DocumentResponse, DocumentStatus } from '../types'
@@ -91,6 +91,11 @@ export default function Dashboard() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [sort, setSort] = useState<Sort>(null)
+  const [results, setResults] = useState<{
+    query: string
+    documents: DocumentResponse[]
+    error?: string
+  } | null>(null)
 
   async function load() {
     setLoading(true)
@@ -109,20 +114,42 @@ export default function Dashboard() {
   }, [])
 
   const searchError = validateSearch(query).query
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q || searchError) return docs
-    return docs.filter(
-      (d) =>
-        d.title.toLowerCase().includes(q) ||
-        (d.description ?? '').toLowerCase().includes(q),
-    )
-  }, [docs, query, searchError])
+  const trimmed = query.trim()
+  const searchingActive = Boolean(trimmed && !searchError)
+  const searching = searchingActive && results?.query !== trimmed
+  const searchFailure = searchingActive && results?.query === trimmed ? results.error : undefined
+
+  useEffect(() => {
+    if (!searchingActive) {
+      setResults(null)
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchDocuments(trimmed)
+        if (!cancelled) setResults({ query: trimmed, documents: found })
+      } catch (err) {
+        if (!cancelled) {
+          setResults({
+            query: trimmed,
+            documents: [],
+            error: err instanceof Error ? err.message : 'Search failed.',
+          })
+        }
+      }
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [trimmed, searchingActive])
 
   const sorted = useMemo(() => {
-    if (!sort) return filtered
+    const visible = searchingActive ? (results?.query === trimmed ? results.documents : []) : docs
+    if (!sort) return visible
     const direction = sort.dir === 'asc' ? 1 : -1
-    return [...filtered].sort((a, b) => {
+    return [...visible].sort((a, b) => {
       switch (sort.key) {
         case 'title':
           return a.title.localeCompare(b.title) * direction
@@ -132,7 +159,7 @@ export default function Dashboard() {
           return (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)) * direction
       }
     })
-  }, [filtered, sort])
+  }, [results, docs, searchingActive, trimmed, sort])
 
   function toggleSort(key: SortKey) {
     setSort((previous) =>
@@ -194,7 +221,7 @@ export default function Dashboard() {
           <InputGroupInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search title or description"
+            placeholder="Search document contents"
             aria-label="Search documents"
             maxLength={255}
             aria-invalid={Boolean(searchError)}
@@ -207,9 +234,11 @@ export default function Dashboard() {
             </InputGroupAddon>
           )}
         </InputGroup>
-        {query && !searchError && (
+        {searchingActive && !searchFailure && (
           <p className="text-sm text-muted-foreground">
-            {filtered.length} of {docs.length} shown
+            {searching
+              ? 'Searching…'
+              : `${sorted.length} ${sorted.length === 1 ? 'match' : 'matches'}`}
           </p>
         )}
       </div>
@@ -219,7 +248,15 @@ export default function Dashboard() {
         </p>
       )}
 
-      {loading && <TableSkeleton rows={4} />}
+      {(loading || searching) && <TableSkeleton rows={4} />}
+
+      {searchFailure && (
+        <Alert variant="destructive">
+          <WarningCircleIcon />
+          <AlertTitle>Search failed.</AlertTitle>
+          <AlertDescription>{searchFailure}</AlertDescription>
+        </Alert>
+      )}
 
       {error && (
         <Alert variant="destructive">
@@ -255,7 +292,7 @@ export default function Dashboard() {
         </Empty>
       )}
 
-      {!loading && !error && hasDocs && filtered.length === 0 && (
+      {!loading && !searching && !error && !searchFailure && searchingActive && sorted.length === 0 && (
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -274,7 +311,7 @@ export default function Dashboard() {
         </Empty>
       )}
 
-      {!loading && !error && filtered.length > 0 && (
+      {!loading && !searching && !error && sorted.length > 0 && (
         <div className="overflow-hidden rounded-xl border bg-card">
           <Table className="table-fixed">
             <TableHeader>
@@ -315,9 +352,9 @@ export default function Dashboard() {
                     >
                       <span className="block truncate">{doc.title}</span>
                     </Link>
-                    {(doc.description || doc.fileName) && (
+                    {(doc.ocrText || doc.description || doc.fileName) && (
                       <p className="truncate text-xs text-muted-foreground">
-                        {doc.description || doc.fileName}
+                        {doc.ocrText || doc.description || doc.fileName}
                       </p>
                     )}
                   </TableCell>

@@ -59,6 +59,10 @@ export function listDocuments(): Promise<DocumentResponse[]> {
   return request<DocumentResponse[]>('/api/documents');
 }
 
+export function searchDocuments(q: string): Promise<DocumentResponse[]> {
+  return request<DocumentResponse[]>(`/api/documents/search?q=${encodeURIComponent(q)}`);
+}
+
 export function getDocument(id: number): Promise<DocumentResponse> {
   return request<DocumentResponse>(`/api/documents/${id}`);
 }

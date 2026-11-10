@@ -16,7 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.List;
 
@@ -37,6 +40,9 @@ public class DocumentServiceTest {
 
     @Mock
     private DocumentQueueSender queueSender;
+
+    @Mock
+    private ObjectStorageService objectStorage;
 
     @InjectMocks
     private DocumentService documentService;
@@ -89,9 +95,39 @@ public class DocumentServiceTest {
         Document document = Document.builder().id(1L).title("NewDoc").build();
         when(documentMapper.toEntity(request)).thenReturn(document);
         when(documentRepository.save(document)).thenReturn(document);
-        doThrow(new QueueException("Rabbit down")).when(queueSender).sendDocumentUploaded(1L);
+        doThrow(new QueueException("Rabbit down")).when(queueSender).sendDocumentUploaded(eq(1L), any());
 
         assertThrows(QueueException.class, () -> documentService.create(request));
+    }
+
+    @Test
+    void upload_shouldStorePdfInObjectStorageAndEnqueueJob() {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            DocumentRequest request = DocumentRequest.builder().title("HelloWorld").build();
+            MockMultipartFile file = new MockMultipartFile("file", "hello.pdf", "application/pdf",
+                    "%PDF-1.4 hello".getBytes(StandardCharsets.US_ASCII));
+            when(documentMapper.toEntity(any(DocumentRequest.class))).thenAnswer(invocation -> {
+                DocumentRequest req = invocation.getArgument(0);
+                Document document = new Document();
+                document.setTitle(req.getTitle());
+                document.setFilePath(req.getFilePath());
+                return document;
+            });
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document saved = invocation.getArgument(0);
+                saved.setId(1L);
+                return saved;
+            });
+            when(documentMapper.toResponse(any(Document.class))).thenReturn(DocumentResponse.builder().id(1L).title("HelloWorld").build());
+
+            documentService.upload(request, file);
+
+            verify(objectStorage).store(argThat(key -> key.endsWith(".pdf")), any(byte[].class));
+            verify(queueSender).sendDocumentUploaded(eq(1L), argThat(key -> key != null && key.endsWith(".pdf")));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
