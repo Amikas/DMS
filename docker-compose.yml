@@ -15,29 +15,6 @@ services:
       timeout: 5s
       retries: 5
 
-  dms-backend:
-    build: ./DMS_Backend
-    volumes:
-      - document_uploads:/app/uploads
-    ports:
-      - "8081:8081"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dms
-      SPRING_DATASOURCE_USERNAME: dms
-      SPRING_DATASOURCE_PASSWORD: dms
-
-  dms-frontend:
-    build: ./DMS_Frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - dms-backend
-  
   rabbitmq:
     image: rabbitmq:4-management
     restart: always
@@ -55,18 +32,110 @@ services:
       timeout: 5s
       retries: 5
 
+  librefs:
+    image: ghcr.io/librefs/librefs:latest
+    command: server /data --console-address :9001
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: dms
+      MINIO_ROOT_PASSWORD: dms-secret
+    volumes:
+      - librefs_data:/data
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.4
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.4
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  dms-backend:
+    build: ./DMS_Backend
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      librefs:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dms
+      SPRING_DATASOURCE_USERNAME: dms
+      SPRING_DATASOURCE_PASSWORD: dms
+      DMS_STORAGE_ENDPOINT: http://librefs:9000
+      DMS_STORAGE_ACCESS_KEY: dms
+      DMS_STORAGE_SECRET_KEY: dms-secret
+      DMS_STORAGE_BUCKET: documents
+      DMS_ELASTICSEARCH_URL: http://elasticsearch:9200
+
+  dms-frontend:
+    build: ./DMS_Frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - dms-backend
+
   dms-ocr-worker:
     build: ./DMS_OCR_Worker
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      librefs:
         condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: dms
       RABBITMQ_PASS: dms
+      STORAGE_ENDPOINT: http://librefs:9000
+      STORAGE_ACCESS_KEY: dms
+      STORAGE_SECRET_KEY: dms-secret
+      STORAGE_BUCKET: documents
+
+  dms-index-worker:
+    build: ./DMS_Index_Worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: dms
+      RABBITMQ_PASS: dms
+      ELASTICSEARCH_URL: http://elasticsearch:9200
 
 volumes:
-  document_uploads:
   postgres_data:
   rabbitmq-lib:
+  librefs_data:
+  es_data:
