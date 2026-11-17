@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import at.fhtw.repository.DocumentRepository;
+import at.fhtw.service.SearchService;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -43,7 +44,7 @@ class SprintOneWorkflowTest {
     @MockitoBean private RabbitTemplate rabbit;
     @MockitoBean private S3Client storageClient;
     // This REST/database test does not start an external Elasticsearch instance.
-    @MockitoBean private at.fhtw.service.SearchService searchService;
+    @MockitoBean private SearchService searchService;
 
     @Test
     void uploadsPdfAndRemovesFailedUploadsOnRollback() throws Exception {

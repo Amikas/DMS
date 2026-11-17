@@ -10,14 +10,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
@@ -111,5 +115,53 @@ class SearchServiceTest {
                 .andRespond(withServerError());
 
         assertThrows(DocumentServiceException.class, () -> service.search("Hello"));
+    }
+
+    @Test
+    void delete_shouldSendDeleteWithRefreshWaitFor() {
+        setUpService();
+        server.expect(requestTo("http://es:9200/documents/_doc/42?refresh=wait_for"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andRespond(withSuccess());
+
+        assertDoesNotThrow(() -> service.delete(42L));
+
+        server.verify();
+    }
+
+    @Test
+    void delete_shouldIgnoreMissingDocumentOrIndex() {
+        setUpService();
+        server.expect(requestTo("http://es:9200/documents/_doc/42?refresh=wait_for"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertDoesNotThrow(() -> service.delete(42L));
+
+        server.verify();
+    }
+
+    @Test
+    void delete_shouldThrow_whenElasticsearchReturnsServerError() {
+        setUpService();
+        server.expect(requestTo("http://es:9200/documents/_doc/42?refresh=wait_for"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andRespond(withServerError());
+
+        DocumentServiceException ex = assertThrows(DocumentServiceException.class, () -> service.delete(42L));
+        assertEquals("Failed to remove document from search index", ex.getMessage());
+        server.verify();
+    }
+
+    @Test
+    void delete_shouldThrow_whenElasticsearchIsUnreachable() {
+        setUpService();
+        server.expect(requestTo("http://es:9200/documents/_doc/42?refresh=wait_for"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andRespond(withException(new IOException("connection refused")));
+
+        DocumentServiceException ex = assertThrows(DocumentServiceException.class, () -> service.delete(42L));
+        assertEquals("Failed to remove document from search index", ex.getMessage());
+        server.verify();
     }
 }

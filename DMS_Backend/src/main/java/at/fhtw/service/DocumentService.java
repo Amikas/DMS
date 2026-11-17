@@ -34,15 +34,17 @@ public class DocumentService {
     private final DocumentQueueSender queueSender;
     private final DocumentMapper mapper;
     private final ObjectStorageService objectStorage;
+    private final SearchService searchService;
 
     public DocumentService(DocumentRepository documentRepository, CollectionDocumentRepository memberships,
                            DocumentMapper mapper, DocumentQueueSender queueSender,
-                           ObjectStorageService objectStorage) {
+                           ObjectStorageService objectStorage, SearchService searchService) {
         this.documentRepository = documentRepository;
         this.memberships = memberships;
         this.mapper = mapper;
         this.queueSender = queueSender;
         this.objectStorage = objectStorage;
+        this.searchService = searchService;
     }
 
     public List<DocumentResponse> getAll() {
@@ -114,8 +116,12 @@ public class DocumentService {
     }
 
     public void delete(Long id) {
-        if (!documentRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Document not found with id: " + id);
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
+        // shortcut: DB, object storage and Elasticsearch are not atomic; cleanup runs first so a failure keeps the row for retry.
+        searchService.delete(id);
+        if (document.getFilePath() != null && !document.getFilePath().isBlank()) {
+            objectStorage.remove(document.getFilePath());
         }
         memberships.deleteAll(memberships.findByDocument_Id(id));
         documentRepository.deleteById(id);

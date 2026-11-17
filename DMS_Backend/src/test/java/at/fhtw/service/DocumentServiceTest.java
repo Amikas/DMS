@@ -6,6 +6,7 @@ import at.fhtw.entity.Document;
 import at.fhtw.entity.DocumentStatus;
 import at.fhtw.entity.Collection;
 import at.fhtw.entity.CollectionDocument;
+import at.fhtw.exception.DocumentServiceException;
 import at.fhtw.exception.ResourceNotFoundException;
 import at.fhtw.exception.QueueException;
 import at.fhtw.mapper.DocumentMapper;
@@ -13,6 +14,9 @@ import at.fhtw.repository.CollectionDocumentRepository;
 import at.fhtw.repository.DocumentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +47,9 @@ public class DocumentServiceTest {
 
     @Mock
     private ObjectStorageService objectStorage;
+
+    @Mock
+    private SearchService searchService;
 
     @InjectMocks
     private DocumentService documentService;
@@ -132,23 +139,68 @@ public class DocumentServiceTest {
 
     @Test
     void delete_shouldThrow_whenNotFound() {
-        when(documentRepository.existsById(999L)).thenReturn(false);
+        when(documentRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> documentService.delete(999L));
+
+        verifyNoInteractions(searchService, objectStorage, memberships);
+        verify(documentRepository, never()).deleteById(anyLong());
     }
 
     @Test
-    void delete_shouldRemoveCollectionMembershipsFirst() {
-        Document document = new Document();
-        document.setId(1L);
+    void delete_shouldRemoveSearchEntryPdfAndDatabaseRows() {
+        Document document = Document.builder().id(1L).filePath("stored.pdf").build();
         CollectionDocument link = new CollectionDocument(new Collection("Work"), document);
-        when(documentRepository.existsById(1L)).thenReturn(true);
+        when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
         when(memberships.findByDocument_Id(1L)).thenReturn(List.of(link));
 
         documentService.delete(1L);
 
-        var order = inOrder(memberships, documentRepository);
+        var order = inOrder(searchService, objectStorage, memberships, documentRepository);
+        order.verify(searchService).delete(1L);
+        order.verify(objectStorage).remove("stored.pdf");
         order.verify(memberships).deleteAll(List.of(link));
         order.verify(documentRepository).deleteById(1L);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    void delete_shouldSkipStorage_whenFilePathIsMissing(String filePath) {
+        Document document = Document.builder().id(1L).filePath(filePath).build();
+        when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
+        when(memberships.findByDocument_Id(1L)).thenReturn(List.of());
+
+        documentService.delete(1L);
+
+        verifyNoInteractions(objectStorage);
+        verify(searchService).delete(1L);
+        verify(memberships).deleteAll(List.of());
+        verify(documentRepository).deleteById(1L);
+    }
+
+    @Test
+    void delete_shouldKeepStorageAndDatabase_whenSearchCleanupFails() {
+        Document document = Document.builder().id(1L).filePath("stored.pdf").build();
+        when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
+        doThrow(new DocumentServiceException("search down")).when(searchService).delete(1L);
+
+        assertThrows(DocumentServiceException.class, () -> documentService.delete(1L));
+
+        verifyNoInteractions(objectStorage, memberships);
+        verify(documentRepository, never()).deleteById(anyLong());
+    }
+
+    @Test
+    void delete_shouldKeepDatabase_whenStorageCleanupFails() {
+        Document document = Document.builder().id(1L).filePath("stored.pdf").build();
+        when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
+        doThrow(new DocumentServiceException("storage down")).when(objectStorage).remove("stored.pdf");
+
+        assertThrows(DocumentServiceException.class, () -> documentService.delete(1L));
+
+        verify(searchService).delete(1L);
+        verifyNoInteractions(memberships);
+        verify(documentRepository, never()).deleteById(anyLong());
     }
 }

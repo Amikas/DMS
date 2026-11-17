@@ -55,6 +55,18 @@ public class SearchService {
         }
     }
 
+    public void delete(Long id) {
+        try {
+            restClient.delete()
+                    .uri("/{index}/_doc/{id}?refresh=wait_for", index, id)
+                    .retrieve()
+                    .onStatus(status -> status.value() == 404, (request, response) -> { })
+                    .toBodilessEntity();
+        } catch (Exception ex) {
+            throw new DocumentServiceException("Failed to remove document from search index", ex);
+        }
+    }
+
     public List<DocumentResponse> search(String query) {
         try {
             String body = objectMapper.writeValueAsString(Map.of(
