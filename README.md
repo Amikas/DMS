@@ -45,7 +45,7 @@ The dashboard uploads PDFs (maximum 10 MB); the API also accepts multipart uploa
 
 ```sh
 curl --fail -F title=Example -F file=@example.pdf http://localhost/api/documents
-docker compose logs dms-ocr-worker  # expect "Received OCR job"
+docker compose logs dms-ocr-worker  # expect "OCR done" after processing
 ```
 
 Each upload sends a job to `dms.document.ocr`. Broker failures return 500 and roll back the document and the uploaded file. This is not crash-atomic across PostgreSQL and RabbitMQ; an outbox is deferred.
@@ -54,7 +54,7 @@ RabbitMQ console: http://localhost:15672 (`dms` / `dms`). Queue/storage errors a
 
 ## Sprint 4
 
-PDF uploads are stored in **libreFS** (S3-compatible object storage, `documents` bucket, console on :9001) instead of a local volume. The backend and OCR worker use standard S3 clients. The two legacy root-credential environment variables in Compose are required by [libreFS itself](https://github.com/libreFS/libreFS/blob/master/internal/config/constants.go). The pipeline:
+PDF uploads are stored in **libreFS** (S3-compatible storage, `documents` bucket). The backend and OCR worker use standard S3 clients. The legacy `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` variable names are required by libreFS itself; no MinIO service is used. The pipeline:
 
 ```sh
 docker compose up --build -d
@@ -68,7 +68,13 @@ curl "http://localhost/api/documents/search?q=Hello"
 3. `dms-index-worker` writes the text to Elasticsearch (`documents` index).
 4. The dashboard search box queries `GET /api/documents/search?q=`, which asks Elasticsearch and joins the hits with the document rows in PostgreSQL.
 
-Ports: libreFS S3 :9000 / console :9001 (`dms` / `dms-secret`), Elasticsearch :9200, Kibana :5601.
+Ports: libreFS S3 :9002 / console :9001 (`dms` / `dms-secret`), Elasticsearch :9200, Kibana :5601, Logstash JSON-lines TCP input :15000. Containers access libreFS on internal port 9000. Logstash writes received events to `dms-logs-*`.
+
+Document details retrieve the full OCR result from Elasticsearch and poll every two seconds while processing. Search returns an empty list before the first document has been indexed. Summaries are not part of Sprint 4.
+
+Acceptance check: run `sh scripts/check-sprint4.sh` after starting Compose. It uploads the sample PDF through the same nginx/API route as the frontend and waits for its ID to appear in the Hello search and for its text to be available in the detail endpoint. It leaves the sample document in the archive. To check manually, open http://localhost/, choose **New document**, upload `Test Artifacts/HelloWorld.pdf`, then search for **Hello**.
+
+When upgrading existing containers, use `docker compose up -d --build` so the OCR worker is recreated with the new code. Existing libreFS volumes are reused.
 
 OCR jobs retry transient failures up to three attempts. Invalid PDFs and exhausted jobs
 are retained in the durable `dms.document.ocr.failed` queue for inspection. OCR publishes

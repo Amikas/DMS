@@ -36,7 +36,7 @@ services:
     image: ghcr.io/librefs/librefs:latest
     command: server /data --console-address :9001
     ports:
-      - "9000:9000"
+      - "9002:9000"
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: dms
@@ -75,6 +75,19 @@ services:
       elasticsearch:
         condition: service_healthy
 
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.17.4
+    environment:
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+      XPACK_MONITORING_ENABLED: "false"
+    volumes:
+      - ./DMS_Logging/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "15000:5000"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
   dms-backend:
     build: ./DMS_Backend
     ports:
@@ -85,6 +98,8 @@ services:
       rabbitmq:
         condition: service_healthy
       librefs:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dms
