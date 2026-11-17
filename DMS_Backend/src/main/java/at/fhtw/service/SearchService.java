@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,6 +43,18 @@ public class SearchService {
         this.index = index;
     }
 
+    public String getOcrText(Long id) {
+        try {
+            String json = restClient.get().uri("/{index}/_doc/{id}", index, id)
+                    .retrieve().body(String.class);
+            return objectMapper.readTree(json).path("_source").path("content").asText("");
+        } catch (HttpClientErrorException.NotFound ex) {
+            return null;
+        } catch (Exception ex) {
+            throw new DocumentServiceException("Failed to retrieve extracted text", ex);
+        }
+    }
+
     public List<DocumentResponse> search(String query) {
         try {
             String body = objectMapper.writeValueAsString(Map.of(
@@ -70,6 +83,9 @@ public class SearchService {
                 response.setOcrText(snippets.get(document.getId()));
                 return response;
             }).toList();
+        } catch (HttpClientErrorException.NotFound ex) {
+            // A fresh installation has no index until the first OCR job completes.
+            return List.of();
         } catch (DocumentServiceException ex) {
             throw ex;
         } catch (Exception ex) {

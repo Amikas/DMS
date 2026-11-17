@@ -62,6 +62,23 @@ export default function DocumentDetail() {
     }
   }, [docId])
 
+  useEffect(() => {
+    if (!doc || !['UPLOADED', 'PROCESSING'].includes(doc.status)) return
+    let cancelled = false
+    const timer = setInterval(async () => {
+      try {
+        const updated = await getDocument(docId)
+        if (!cancelled) setDoc(updated)
+      } catch {
+        // Keep the document visible; the next poll retries temporary failures.
+      }
+    }, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [docId, doc?.status])
+
   async function handleUpdate(data: DocumentRequest) {
     setSaving(true)
     try {

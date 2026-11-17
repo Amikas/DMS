@@ -42,6 +42,8 @@ class SprintOneWorkflowTest {
     @Autowired private DocumentRepository documents;
     @MockitoBean private RabbitTemplate rabbit;
     @MockitoBean private S3Client storageClient;
+    // This REST/database test does not start an external Elasticsearch instance.
+    @MockitoBean private at.fhtw.service.SearchService searchService;
 
     @Test
     void uploadsPdfAndRemovesFailedUploadsOnRollback() throws Exception {

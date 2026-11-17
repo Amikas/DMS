@@ -54,11 +54,13 @@ public class DocumentControllerTest {
     void getById_shouldReturnDocument() {
         DocumentResponse response = DocumentResponse.builder().id(1L).title("Doc1").build();
         when(documentService.getById(1L)).thenReturn(response);
+        when(searchService.getOcrText(1L)).thenReturn("Hello from OCR");
 
         ResponseEntity<DocumentResponse> result = controller.getById(1L);
 
         assertEquals(200, result.getStatusCode().value());
         assertEquals("Doc1", result.getBody().getTitle());
+        assertEquals("Hello from OCR", result.getBody().getOcrText());
     }
 
     @Test

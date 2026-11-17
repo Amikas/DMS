@@ -41,6 +41,27 @@ class SearchServiceTest {
     }
 
     @Test
+    void search_beforeFirstUploadReturnsNoMatches() {
+        setUpService();
+        server.expect(requestTo("http://es:9200/documents/_search"))
+                .andRespond(withResourceNotFound());
+        assertTrue(service.search("Hello").isEmpty());
+        server.verify();
+    }
+
+    @Test
+    void getOcrText_returnsFullTextAndHandlesMissingDocument() {
+        setUpService();
+        server.expect(requestTo("http://es:9200/documents/_doc/1"))
+                .andRespond(withSuccess("{\"_source\":{\"content\":\"Extracted text\"}}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://es:9200/documents/_doc/2"))
+                .andRespond(withResourceNotFound());
+        assertEquals("Extracted text", service.getOcrText(1L));
+        assertNull(service.getOcrText(2L));
+        server.verify();
+    }
+
+    @Test
     void search_shouldReturnDocumentsInElasticsearchOrder() {
         setUpService();
         Document doc1 = new Document();
