@@ -149,8 +149,58 @@ services:
       RABBITMQ_PASS: dms
       ELASTICSEARCH_URL: http://elasticsearch:9200
 
+  llama:
+    image: ghcr.io/ggml-org/llama.cpp:server@sha256:20db01dc9a92bff54a5b9fe4078caa52be6a0c1fa73859c6449e25b9cb67f998
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --model
+      - /models/LFM3-1.7B-Q4_K_M.gguf
+      - --model-url
+      - https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/resolve/b3f2ae5d73cd3c91bf40e8ba752c648aa05dffdf/LFM3-1.7B-Q4_K_M.gguf
+      - --alias
+      - lfm3
+      - --n-gpu-layers
+      - "0"
+      - --threads
+      - "4"
+      - --parallel
+      - "1"
+      - --ctx-size
+      - "16384"
+      - --reasoning
+      - "off"
+      - --no-webui
+      - --no-cache-prompt
+      - --cache-ram
+      - "0"
+    volumes:
+      - llama_models:/models
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health"]
+      start_period: 2m
+      interval: 5s
+      timeout: 3s
+      retries: 48
+
+  dms-genai-worker:
+    build: ./DMS_GenAI_Worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      llama:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: dms
+      RABBITMQ_PASS: dms
+      LLAMA_URL: http://llama:8080
+
 volumes:
   postgres_data:
   rabbitmq-lib:
   librefs_data:
   es_data:
+  llama_models:

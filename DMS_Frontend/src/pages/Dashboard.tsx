@@ -48,6 +48,7 @@ const STATUS_ORDER: DocumentStatus[] = [
   'PROCESSING',
   'UPLOADED',
   'OCR_COMPLETE',
+  'SUMMARIZING',
   'SUMMARY_GENERATED',
   'ARCHIVED',
 ]

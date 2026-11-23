@@ -23,6 +23,7 @@ RABBITMQ_USER = os.getenv('RABBITMQ_USER', 'dms')
 RABBITMQ_PASS = os.getenv('RABBITMQ_PASS', 'dms')
 OCR_QUEUE = 'dms.document.ocr'
 INDEX_QUEUE = 'dms.document.index'
+SUMMARY_QUEUE = 'dms.document.summarize'
 FAILED_QUEUE = OCR_QUEUE + '.failed'
 MAX_ATTEMPTS = 3
 
@@ -100,6 +101,10 @@ def handle_ocr_job(ch, method, properties, body):
     ch.basic_publish(exchange="", routing_key=INDEX_QUEUE,
                      mandatory=True, properties=pika.BasicProperties(delivery_mode=2),
                      body=json.dumps({"documentId": document_id, "content": text}))
+    if text.strip():
+        ch.basic_publish(exchange="", routing_key=SUMMARY_QUEUE,
+                         mandatory=True, properties=pika.BasicProperties(delivery_mode=2),
+                         body=json.dumps({"documentId": document_id, "objectKey": object_key, "content": text}))
     logger.info("OCR done for document id=%s, %d characters extracted", document_id, len(text))
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -111,6 +116,7 @@ def main():
                 channel = connection.channel()
                 channel.queue_declare(queue=OCR_QUEUE, durable=True)
                 channel.queue_declare(queue=INDEX_QUEUE, durable=True)
+                channel.queue_declare(queue=SUMMARY_QUEUE, durable=True)
                 channel.queue_declare(queue=FAILED_QUEUE, durable=True)
                 channel.confirm_delivery()
                 channel.basic_qos(prefetch_count=1)

@@ -9,6 +9,7 @@ public class RabbitConfig {
 
     public static final String EXCHANGE = "dms.document.exchange";
     public static final String QUEUE = "dms.document.ocr";
+    public static final String SUMMARY_QUEUE = "dms.document.summary";
     public static final String ROUTING_KEY = "dms.document.uploaded";
 
     @Bean

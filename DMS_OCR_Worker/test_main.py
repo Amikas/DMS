@@ -1,3 +1,4 @@
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -35,12 +36,24 @@ class OcrWorkerTest(unittest.TestCase):
         with patch.object(main.storage, "get_object", return_value={"Body": response}), \
                 patch.object(main, "extract_text", return_value="hello"):
             main.handle_ocr_job(channel, METHOD, pika.BasicProperties(), JOB)
-        publish = channel.basic_publish.call_args.kwargs
-        self.assertEqual(publish["routing_key"], main.INDEX_QUEUE)
-        self.assertEqual(publish["properties"].delivery_mode, 2)
-        self.assertTrue(publish["mandatory"])
-        self.assertEqual([call[0] for call in channel.mock_calls], ["basic_publish", "basic_ack"])
+        index, summary = [call.kwargs for call in channel.basic_publish.call_args_list]
+        self.assertEqual(index["routing_key"], main.INDEX_QUEUE)
+        self.assertEqual(summary["routing_key"], main.SUMMARY_QUEUE)
+        self.assertEqual(json.loads(summary["body"]), {"documentId": 1, "objectKey": "test.pdf", "content": "hello"})
+        for publish in (index, summary):
+            self.assertEqual(publish["properties"].delivery_mode, 2)
+            self.assertTrue(publish["mandatory"])
+        self.assertEqual([call[0] for call in channel.mock_calls], ["basic_publish", "basic_publish", "basic_ack"])
         response.close.assert_called_once()
+
+    def test_empty_text_indexes_without_requesting_a_summary(self):
+        channel = Mock()
+        with patch.object(main.storage, "get_object", return_value={"Body": Mock()}), \
+                patch.object(main, "extract_text", return_value=" "):
+            main.handle_ocr_job(channel, METHOD, pika.BasicProperties(), JOB)
+        channel.basic_publish.assert_called_once()
+        self.assertEqual(channel.basic_publish.call_args.kwargs["routing_key"], main.INDEX_QUEUE)
+        channel.basic_ack.assert_called_once()
 
     def test_corrupt_pdf_goes_to_failed_queue(self):
         channel = Mock()
