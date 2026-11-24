@@ -87,3 +87,22 @@ Worker regression checks (after building their images):
 docker compose run --rm --no-deps -v "$PWD/DMS_OCR_Worker:/app:ro" dms-ocr-worker python -m unittest -v
 docker compose run --rm --no-deps -v "$PWD/DMS_Index_Worker:/app:ro" dms-index-worker python -m unittest -v
 ```
+
+## Sprint 5
+
+```sh
+docker compose up -d --build
+sh scripts/check-sprint5.sh
+```
+
+On first startup, the CPU-only `llama.cpp` container downloads the official **LFM3‑1.7B Q4_K_M** model (about 1.1 GB) from Hugging Face into the `llama_models` volume. Once the images and model are cached, it can start without internet. Keep the volume (`docker compose down` without `-v`). No GPU, LM Studio, or API key is needed. The model's HTTP port is only available inside Compose.
+
+OCR sends text to search indexing and to a separate summary queue. The GenAI worker summarizes one document at a time with a 16K context; if the full text does not fit, it summarizes the opening and prefixes the result with `Partial summary:`. Documents with no extracted text are not summarized. The backend saves the result in PostgreSQL and the existing document details show it. PDFs near the context limit can take several minutes on CPU, but search does not wait for inference.
+
+The acceptance script needs `curl` and `jq`. It uploads the sample PDF, checks that it can be found through search, and reads the saved summary through the document API. For worker errors, run `docker compose logs dms-genai-worker`. Jobs that fail three attempts are retained in `dms.document.summarize.failed`; that queue contains extracted document text.
+
+The document detail shows **Summarizing…** during inference and **Complete** once the summary is stored and the PDF is searchable. If a summary attempt fails, the badge returns to **OCR complete** until the next attempt starts.
+
+```sh
+docker compose run --rm --no-deps -v "$PWD/DMS_GenAI_Worker:/app:ro" dms-genai-worker python -m unittest -v
+```

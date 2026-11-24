@@ -34,6 +34,10 @@ export default function DocumentDetail() {
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const status = doc?.id === docId && doc.filePath ? doc.status : undefined
+  const pollDelay = status === 'OCR_COMPLETE'
+    ? 5000
+    : status && ['UPLOADED', 'PROCESSING', 'SUMMARIZING'].includes(status) ? 2000 : 0
 
   useEffect(() => {
     let cancelled = false
@@ -63,21 +67,25 @@ export default function DocumentDetail() {
   }, [docId])
 
   useEffect(() => {
-    if (!doc || !['UPLOADED', 'PROCESSING'].includes(doc.status)) return
+    if (!pollDelay) return
     let cancelled = false
-    const timer = setInterval(async () => {
+    // shortcut: stop polling after fifteen minutes in one state; reload if the job is still queued.
+    const deadline = Date.now() + 15 * 60 * 1000
+    async function refresh() {
       try {
         const updated = await getDocument(docId)
         if (!cancelled) setDoc(updated)
       } catch {
         // Keep the document visible; the next poll retries temporary failures.
       }
-    }, 2000)
+      if (!cancelled && Date.now() < deadline) timer = setTimeout(refresh, pollDelay)
+    }
+    let timer = setTimeout(refresh, pollDelay)
     return () => {
       cancelled = true
-      clearInterval(timer)
+      clearTimeout(timer)
     }
-  }, [docId, doc?.status])
+  }, [docId, pollDelay, status])
 
   async function handleUpdate(data: DocumentRequest) {
     setSaving(true)

@@ -36,12 +36,7 @@ public class DocumentController {
 
     @GetMapping("/{id}")
     public ResponseEntity<DocumentResponse> getById(@PathVariable Long id) {
-        DocumentResponse response = documentService.getById(id);
-        response.setOcrText(searchService.getOcrText(id));
-        if (response.getOcrText() != null && "UPLOADED".equals(response.getStatus())) {
-            response.setStatus("OCR_COMPLETE");
-        }
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(documentService.getById(id));
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
