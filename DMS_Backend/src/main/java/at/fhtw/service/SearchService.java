@@ -45,7 +45,7 @@ public class SearchService {
 
     public String getOcrText(Long id) {
         try {
-            String json = restClient.get().uri("/{index}/_doc/{id}?realtime=false", index, id)
+            String json = restClient.get().uri("/{index}/_doc/{id}", index, id)
                     .retrieve().body(String.class);
             return objectMapper.readTree(json).path("_source").path("content").asText("");
         } catch (HttpClientErrorException.NotFound ex) {
@@ -93,7 +93,6 @@ public class SearchService {
             return documents.stream().map(document -> {
                 DocumentResponse response = mapper.toResponse(document);
                 response.setOcrText(snippets.get(document.getId()));
-                response.setStatus(DocumentMapper.statusWithSearch(document, true).name());
                 return response;
             }).toList();
         } catch (HttpClientErrorException.NotFound ex) {

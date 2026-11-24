@@ -56,16 +56,14 @@ public class DocumentService {
     public DocumentResponse getById(Long id) {
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
-        DocumentResponse response = toResponse(document);
-        response.setOcrText(searchService.getOcrText(id));
-        response.setStatus(DocumentMapper.statusWithSearch(document, response.getOcrText() != null).name());
-        return response;
+        return toResponse(document);
     }
 
     public DocumentResponse create(DocumentRequest request) {
         Document document = mapper.toEntity(request);
         document.setStatus(DocumentStatus.UPLOADED);
         Document saved = documentRepository.save(document);
+        // ponytail: DB and RabbitMQ are not atomic; use an outbox for crash-safe delivery.
         queueSender.sendDocumentUploaded(saved.getId(), saved.getFilePath());
         log.info("Enqueued OCR job for document id={}", saved.getId());
         return toResponse(saved);

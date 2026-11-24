@@ -52,8 +52,9 @@ public class DocumentControllerTest {
 
     @Test
     void getById_shouldReturnDocument() {
-        DocumentResponse response = DocumentResponse.builder().id(1L).title("Doc1").ocrText("Hello from OCR").build();
+        DocumentResponse response = DocumentResponse.builder().id(1L).title("Doc1").build();
         when(documentService.getById(1L)).thenReturn(response);
+        when(searchService.getOcrText(1L)).thenReturn("Hello from OCR");
 
         ResponseEntity<DocumentResponse> result = controller.getById(1L);
 
