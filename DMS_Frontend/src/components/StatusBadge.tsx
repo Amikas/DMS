@@ -5,7 +5,8 @@ const LABELS: Record<DocumentStatus, string> = {
   UPLOADED: 'Uploaded',
   PROCESSING: 'Processing',
   OCR_COMPLETE: 'OCR complete',
-  SUMMARY_GENERATED: 'Summary ready',
+  SUMMARIZING: 'Summarizing…',
+  SUMMARY_GENERATED: 'Complete',
   ARCHIVED: 'Archived',
 }
 
@@ -13,6 +14,7 @@ const VARIANTS: Record<DocumentStatus, 'secondary' | 'warning' | 'success' | 'ou
   UPLOADED: 'secondary',
   PROCESSING: 'warning',
   OCR_COMPLETE: 'success',
+  SUMMARIZING: 'warning',
   SUMMARY_GENERATED: 'success',
   ARCHIVED: 'outline',
 }
