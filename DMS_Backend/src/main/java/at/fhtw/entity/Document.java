@@ -1,14 +1,11 @@
 package at.fhtw.entity;
 
 import jakarta.persistence.*;
-import org.hibernate.annotations.DynamicUpdate;
 import lombok.*;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
-@DynamicUpdate // Metadata edits must not overwrite the asynchronously saved summary.
 @Table(name = "documents")
 @Getter
 @Setter
@@ -49,8 +46,6 @@ public class Document {
 
     @Column(length = 5000)
     private String summary;
-
-    private Instant summaryStartedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

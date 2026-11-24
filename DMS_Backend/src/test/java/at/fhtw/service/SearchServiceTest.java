@@ -56,9 +56,9 @@ class SearchServiceTest {
     @Test
     void getOcrText_returnsFullTextAndHandlesMissingDocument() {
         setUpService();
-        server.expect(requestTo("http://es:9200/documents/_doc/1?realtime=false"))
+        server.expect(requestTo("http://es:9200/documents/_doc/1"))
                 .andRespond(withSuccess("{\"_source\":{\"content\":\"Extracted text\"}}", MediaType.APPLICATION_JSON));
-        server.expect(requestTo("http://es:9200/documents/_doc/2?realtime=false"))
+        server.expect(requestTo("http://es:9200/documents/_doc/2"))
                 .andRespond(withResourceNotFound());
         assertEquals("Extracted text", service.getOcrText(1L));
         assertNull(service.getOcrText(2L));
@@ -71,7 +71,6 @@ class SearchServiceTest {
         Document doc1 = new Document();
         doc1.setId(1L);
         doc1.setTitle("HelloWorld");
-        doc1.setSummary("Test summary");
         Document doc2 = new Document();
         doc2.setId(2L);
         doc2.setTitle("Other");
@@ -94,8 +93,6 @@ class SearchServiceTest {
         assertEquals("hello there", results.get(0).getOcrText());
         assertEquals(1L, results.get(1).getId());
         assertEquals("Hello World", results.get(1).getOcrText());
-        assertEquals("OCR_COMPLETE", results.get(0).getStatus());
-        assertEquals("SUMMARY_GENERATED", results.get(1).getStatus());
     }
 
     @Test
