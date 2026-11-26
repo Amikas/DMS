@@ -14,6 +14,8 @@ curl http://localhost:8081/api/health
 
 Run unit tests from `DMS_Backend` with JDK 25 or newer: `mvn clean test`.
 
+The [DMS Archive Android app](DMS_Mobile/README.md) can list, search, and inspect documents through the same REST API.
+
 Collection endpoints:
 
 | Method | Path | Action |
